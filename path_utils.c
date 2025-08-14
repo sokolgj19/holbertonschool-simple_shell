@@ -1,159 +1,103 @@
 #include "shell.h"
 
 /**
- * _strdup_local - Duplicates a string using malloc
- * @s: The string to duplicate
+ * get_path_dirs - splits PATH into directories
+ * @envp: environment variables
  *
- * Return: Pointer to the duplicated string, or NULL on failure
+ * Return: array of PATH directories or NULL
  */
-static char *_strdup_local(const char *s)
+char **get_path_dirs(char **envp)
 {
-	size_t len;
-	char *p;
+	char *path = NULL, *copy, **dirs;
+	size_t i = 0, bufsize = 64;
 
-	if (!s)
+	while (envp[i])
+	{
+		if (strncmp(envp[i], "PATH=", 5) == 0)
+		{
+			path = envp[i] + 5;
+			break;
+		}
+		i++;
+	}
+	if (!path)
 		return (NULL);
-	len = strlen(s);
-	p = (char *)malloc(len + 1);
-	if (!p)
+
+	copy = strdup(path);
+	if (!copy)
 		return (NULL);
-	memcpy(p, s, len + 1);
-	return (p);
+
+	dirs = malloc(bufsize * sizeof(char *));
+	if (!dirs)
+		return (free(copy), NULL);
+
+	i = 0;
+	for (char *tok = strtok(copy, ":"); tok; tok = strtok(NULL, ":"))
+	{
+		if (i + 1 >= bufsize)
+		{
+			bufsize *= 2;
+			dirs = realloc(dirs, bufsize * sizeof(char *));
+			if (!dirs)
+				return (free(copy), NULL);
+		}
+		dirs[i++] = strdup(tok);
+	}
+	dirs[i] = NULL;
+	free(copy);
+	return (dirs);
 }
 
 /**
- * find_env_value - Finds the value of an environment variable
- * @env: Environment array
- * @name: Name of the variable
+ * join_path - joins dir + command
+ * @dir: directory
+ * @cmd: command
  *
- * Return: Pointer to the value string or NULL if not found
+ * Return: malloc'ed string
  */
-char *find_env_value(char **env, const char *name)
+char *join_path(char *dir, char *cmd)
 {
-	size_t nlen;
-	int i;
+	size_t len = strlen(dir) + strlen(cmd) + 2;
+	char *full = malloc(len);
 
-	if (!env || !name)
+	if (!full)
 		return (NULL);
 
-	nlen = strlen(name);
-	for (i = 0; env[i]; i++)
-	{
-		if (!strncmp(env[i], name, nlen) && env[i][nlen] == '=')
-			return (env[i] + nlen + 1);
-	}
-	return (NULL);
+	strcpy(full, dir);
+	strcat(full, "/");
+	strcat(full, cmd);
+
+	return (full);
 }
 
 /**
- * join_path - Joins a directory and command into a single path
- * @dir: Directory
- * @cmd: Command
+ * find_command - searches for a command in PATH
+ * @cmd: command name
+ * @envp: environment variables
  *
- * Return: Malloc'd full path or NULL on failure
+ * Return: malloc'ed full path or NULL
  */
-static char *join_path(const char *dir, const char *cmd)
+char *find_command(char *cmd, char **envp)
 {
-	size_t len;
-	char *out;
+	char **dirs = get_path_dirs(envp);
+	char *full = NULL;
+	size_t i = 0;
 
-	len = strlen(dir) + 1 + strlen(cmd) + 1;
-	out = (char *)malloc(len);
-	if (!out)
+	if (!dirs)
 		return (NULL);
 
-	out[0] = '\0';
-	strcat(out, dir);
-	strcat(out, "/");
-	strcat(out, cmd);
-	return (out);
-}
-
-/**
- * resolve_command - Resolves a command into a full path
- * @cmd: Command to resolve
- * @env: Environment variables
- *
- * Description:
- * - If cmd contains '/', checks if it's executable.
- * - Otherwise, searches in PATH. Empty PATH entries map to ".".
- *
- * Return: Malloc'd full path or NULL if not found
- */
-char *resolve_command(char *cmd, char **env)
-{
-	char *path, *norm, *p, *dir, *full;
-	size_t i, j, len;
-
-	if (!cmd || !*cmd)
-		return (NULL);
-
-	if (strchr(cmd, '/'))
+	while (dirs[i])
 	{
-		if (access(cmd, X_OK) == 0)
-			return (_strdup_local(cmd));
-		return (NULL);
-	}
-
-	path = find_env_value(env, "PATH");
-	if (!path || !*path)
-		return (NULL);
-
-	len = strlen(path);
-	norm = (char *)malloc(len * 2 + 3);
-	if (!norm)
-		return (NULL);
-
-	j = 0;
-	if (path[0] == ':')
-	{
-		norm[j++] = '.';
-		norm[j++] = ':';
-		i = 1;
-	}
-	else
-	{
-		i = 0;
-	}
-
-	while (i < len)
-	{
-		if (path[i] == ':')
-		{
-			norm[j++] = ':';
-			if (i + 1 >= len || path[i + 1] == ':')
-				norm[j++] = '.';
-			i++;
-		}
-		else
-		{
-			norm[j++] = path[i++];
-		}
-	}
-	if (j > 0 && norm[j - 1] == ':')
-		norm[j++] = '.';
-
-	norm[j] = '\0';
-
-	p = strtok(norm, ":");
-	while (p)
-	{
-		dir = p;
-		full = join_path(dir, cmd);
-		if (!full)
-		{
-			free(norm);
-			return (NULL);
-		}
-		if (access(full, X_OK) == 0)
-		{
-			free(norm);
-			return (full);
-		}
+		full = join_path(dirs[i], cmd);
+		if (full && access(full, X_OK) == 0)
+			break;
 		free(full);
-		p = strtok(NULL, ":");
+		full = NULL;
+		i++;
 	}
+	for (i = 0; dirs[i]; i++)
+		free(dirs[i]);
+	free(dirs);
 
-	free(norm);
-	return (NULL);
+	return (full);
 }

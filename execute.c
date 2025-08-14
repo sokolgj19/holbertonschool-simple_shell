@@ -1,62 +1,37 @@
 #include "shell.h"
 
 /**
- * execute_command - executes a command by forking a child process
- * @argv: argument vector for the command
- * @env: environment variables
- * @progname: name of the shell program (for error messages)
- * @last_status: pointer to store the last exit status
+ * execute_command - forks and executes a command
+ * @argv: argument vector
+ * @envp: environment variables
  *
- * Return: Always 0. The result of the command is stored in *last_status.
- *
- * Description:
- * - Checks if the command exists (resolve_command).
- * - If it does not exist, prints an error to stderr and sets status = 127.
- * - If it exists, forks and execves. Updates *last_status accordingly.
+ * Return: status code
  */
-int execute_command(char **argv, char **env, const char *progname,
-		    int *last_status)
+int execute_command(char **argv, char **envp)
 {
 	pid_t pid;
-	int status = 0;
-	char *full = resolve_command(argv[0], env);
+	int status;
 
-	if (!full)
-	{
-		dprintf(STDERR_FILENO, "%s: 1: %s: not found\n",
-			progname, argv[0]);
-		*last_status = 127;
+	if (argv == NULL || argv[0] == NULL)
 		return (0);
-	}
 
 	pid = fork();
 	if (pid == -1)
 	{
-		perror(progname);
-		free(full);
-		*last_status = 1;
-		return (0);
+		perror("fork");
+		return (1);
 	}
-
 	if (pid == 0)
 	{
-		execve(full, argv, env);
-		perror(progname);
-		_exit(126);
+		if (execve(argv[0], argv, envp) == -1)
+		{
+			perror("execve");
+			exit(EXIT_FAILURE);
+		}
 	}
-
-	free(full);
-	if (waitpid(pid, &status, 0) == -1)
-	{
-		perror(progname);
-		*last_status = 1;
-		return (0);
-	}
-
-	if (WIFEXITED(status))
-		*last_status = WEXITSTATUS(status);
 	else
-		*last_status = 1;
-
-	return (0);
+	{
+		waitpid(pid, &status, 0);
+	}
+	return (WIFEXITED(status) ? WEXITSTATUS(status) : 1);
 }

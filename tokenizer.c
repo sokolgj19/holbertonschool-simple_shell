@@ -1,10 +1,10 @@
 #include "shell.h"
 
 /**
- * split_line - Splits a line into an array of tokens
- * @line: The input line to tokenize
+ * split_line - splits a line into tokens
+ * @line: input string
  *
- * Return: Pointer to an array of tokens, or NULL on failure
+ * Return: NULL-terminated array of strings
  */
 char **split_line(char *line)
 {
@@ -33,8 +33,8 @@ char **split_line(char *line)
 }
 
 /**
- * free_argv - Frees memory allocated for argument vector
- * @argv: Pointer to the array of arguments
+ * free_argv - frees a token array allocated by split_line
+ * @argv: token array
  */
 void free_argv(char **argv)
 {
