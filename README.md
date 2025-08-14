@@ -1,5 +1,5 @@
 # Simple Shell  
-**“The Gates of Shell” – A UNIX command line interpreter built in C.**  
+**"The Gates of Shell" – A UNIX command line interpreter built in C.**  
 
 This project was developed as part of the Holberton School curriculum to understand how a shell works under the hood.  
 
@@ -43,7 +43,7 @@ By completing this project, we learned and can explain:
 - How the shell uses the `PATH` to locate programs  
 - How to execute another program with `execve()`  
 - How to wait for processes with `wait()`  
-- What EOF (“end-of-file”) means  
+- What EOF ("end-of-file") means  
 
 ---
 
@@ -70,9 +70,9 @@ Our shell supports:
 
 ```bash
 gcc -Wall -Werror -Wextra -pedantic -std=gnu89 *.c -o hsh
+```
 
 ---
 
-## Authors 
-
-- Sokol Gjeka
+## ✍️ Authors  
+**Sokol Gjeka** - [@sokolgj19](https://github.com/sokolgj19)
