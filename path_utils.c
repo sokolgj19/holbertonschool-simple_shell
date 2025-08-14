@@ -1,103 +1,143 @@
 #include "shell.h"
 
-/**
- * get_path_dirs - splits PATH into directories
- * @envp: environment variables
- *
- * Return: array of PATH directories or NULL
- */
-char **get_path_dirs(char **envp)
+
+static char *_strdup_local(const char *s)
 {
-	char *path = NULL, *copy, **dirs;
-	size_t i = 0, bufsize = 64;
+    size_t len;
+    char *p;
 
-	while (envp[i])
-	{
-		if (strncmp(envp[i], "PATH=", 5) == 0)
-		{
-			path = envp[i] + 5;
-			break;
-		}
-		i++;
-	}
-	if (!path)
-		return (NULL);
-
-	copy = strdup(path);
-	if (!copy)
-		return (NULL);
-
-	dirs = malloc(bufsize * sizeof(char *));
-	if (!dirs)
-		return (free(copy), NULL);
-
-	i = 0;
-	for (char *tok = strtok(copy, ":"); tok; tok = strtok(NULL, ":"))
-	{
-		if (i + 1 >= bufsize)
-		{
-			bufsize *= 2;
-			dirs = realloc(dirs, bufsize * sizeof(char *));
-			if (!dirs)
-				return (free(copy), NULL);
-		}
-		dirs[i++] = strdup(tok);
-	}
-	dirs[i] = NULL;
-	free(copy);
-	return (dirs);
+    if (!s)
+        return NULL;
+    len = strlen(s);
+    p = (char *)malloc(len + 1);
+    if (!p)
+        return NULL;
+    memcpy(p, s, len + 1);
+    return p;
 }
 
-/**
- * join_path - joins dir + command
- * @dir: directory
- * @cmd: command
- *
- * Return: malloc'ed string
- */
-char *join_path(char *dir, char *cmd)
+char *find_env_value(char **env, const char *name)
 {
-	size_t len = strlen(dir) + strlen(cmd) + 2;
-	char *full = malloc(len);
+    size_t nlen;
+    int i;
 
-	if (!full)
-		return (NULL);
+    if (!env || !name)
+        return NULL;
 
-	strcpy(full, dir);
-	strcat(full, "/");
-	strcat(full, cmd);
-
-	return (full);
+    nlen = strlen(name);
+    for (i = 0; env[i]; i++)
+    {
+        if (!strncmp(env[i], name, nlen) && env[i][nlen] == '=')
+            return env[i] + nlen + 1;
+    }
+    return NULL;
 }
 
-/**
- * find_command - searches for a command in PATH
- * @cmd: command name
- * @envp: environment variables
- *
- * Return: malloc'ed full path or NULL
- */
-char *find_command(char *cmd, char **envp)
+
+static char *join_path(const char *dir, const char *cmd)
 {
-	char **dirs = get_path_dirs(envp);
-	char *full = NULL;
-	size_t i = 0;
+    size_t len;
+    char *out;
 
-	if (!dirs)
-		return (NULL);
+    len = strlen(dir) + 1 + strlen(cmd) + 1;
+    out = (char *)malloc(len);
+    if (!out)
+        return NULL;
 
-	while (dirs[i])
-	{
-		full = join_path(dirs[i], cmd);
-		if (full && access(full, X_OK) == 0)
-			break;
-		free(full);
-		full = NULL;
-		i++;
-	}
-	for (i = 0; dirs[i]; i++)
-		free(dirs[i]);
-	free(dirs);
+    out[0] = '\0';
+    strcat(out, dir);
+    strcat(out, "/");
+    strcat(out, cmd);
+    return out;
+}
 
-	return (full);
+/*
+ * resolve_command:
+ *  - If cmd contains '/', check access(X_OK) and return a copy if executable.
+ *  - Otherwise, search in PATH. Empty PATH entries map to "." per POSIX.
+ *  - Returns malloc'ed full path or NULL if not found.
+ */
+char *resolve_command(char *cmd, char **env)
+{
+    char *path;
+    char *norm;
+    char *p;
+    char *dir;
+    char *full;
+    size_t i, j, len;
+
+    if (!cmd || !*cmd)
+        return NULL;
+
+
+    if (strchr(cmd, '/'))
+    {
+        if (access(cmd, X_OK) == 0)
+            return _strdup_local(cmd);
+        return NULL;
+    }
+
+    path = find_env_value(env, "PATH");
+    if (!path || !*path)
+        return NULL;
+
+
+    len = strlen(path);
+    norm = (char *)malloc(len * 2 + 3);
+    if (!norm)
+        return NULL;
+
+    j = 0;
+    if (path[0] == ':')
+    {
+        norm[j++] = '.';
+        norm[j++] = ':';
+        i = 1;
+    }
+    else
+    {
+        i = 0;
+    }
+
+    while (i < len)
+    {
+        if (path[i] == ':')
+        {
+            norm[j++] = ':';
+            if (i + 1 >= len || path[i + 1] == ':')
+                norm[j++] = '.';
+            i++;
+        }
+        else
+        {
+            norm[j++] = path[i++];
+        }
+    }
+    if (j > 0 && norm[j - 1] == ':')
+        norm[j++] = '.';
+
+    norm[j] = '\0';
+
+    
+    p = strtok(norm, ":");
+    while (p)
+    {
+        dir = p;
+        full = join_path(dir, cmd);
+        if (!full)
+        {
+            free(norm);
+            return NULL;
+        }
+        if (access(full, X_OK) == 0)
+        {
+            free(norm);
+            return full;
+        }
+        free(full);
+        p = strtok(NULL, ":");
+    }
+
+    free(norm);
+    return NULL;
 }
